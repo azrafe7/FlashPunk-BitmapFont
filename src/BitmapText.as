@@ -47,6 +47,7 @@ package {
 			
 			super(new BitmapData(_fieldWidth, _fieldHeight, true, 0));
 			
+			lock();
 			if (options != null)
 			{
 				for (var property:String in options) {
@@ -61,6 +62,8 @@ package {
 			updateGlyphs(true, _shadow, _outline);
 			
 			_pendingTextChange = true;
+			unlock();
+			
 			updateTextBuffer();
 		}
 		
@@ -116,7 +119,7 @@ package {
 		/** Updates the text buffer, which is the source for the image buffer. */
 		public function updateTextBuffer(forceUpdate:Boolean = false):void 
 		{
-			if (_font == null || (!_pendingTextChange && !forceUpdate))
+			if (_font == null || locked || (!_pendingTextChange && !forceUpdate))
 			{
 				return;
 			}
@@ -290,7 +293,7 @@ package {
 			
 			if (_source != null) 
 			{
-				if (finalWidth != _sourceRect.width || finalHeight != _sourceRect.height) 
+				if (finalWidth > _sourceRect.width || finalHeight > _sourceRect.height) 
 				{
 					_source.dispose();
 					_source = null;
