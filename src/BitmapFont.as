@@ -173,33 +173,35 @@ package {
 			var glyph:BitmapData;
 			var nGlyphs:int = _glyphString.length;
 			var output:String = "";
+			var byteArray:ByteArray = new ByteArray();
 			
-			output += String.fromCharCode(nGlyphs + 32);
-			output += String.fromCharCode(maxWidth + 32);
-			output += String.fromCharCode(height + 32);
+			byteArray.writeShort(nGlyphs);
+			byteArray.writeShort(maxWidth);
+			byteArray.writeShort(height);
 
 			for (var i:int = 0; i < nGlyphs; i++) 
 			{
 				charCode = _glyphString.charCodeAt(i);
 				glyph = _glyphs[charCode];
 				
-				output += _glyphString.charAt(i);
-				output += String.fromCharCode(glyph.width + 32);
-				output += String.fromCharCode(glyph.height + 32);
+				byteArray.writeUTF(_glyphString.charAt(i));
+				byteArray.writeShort(glyph.width);
+				byteArray.writeShort(glyph.height);
 				
 				for (var py:int = 0; py < glyph.height; py++) 
 				{
 					for (var px:int = 0; px < glyph.width; px++) 
 					{
 						var pixel:uint = glyph.getPixel32(px, py) & 0xFF000000;
-						output += (pixel == 0xFF000000) ? "1" : "0";
+						byteArray.writeBoolean(pixel == 0xFF000000);
 					}
 				}
 			}
 			
-			var byteArray:ByteArray = new ByteArray();
-			byteArray.writeUTF(output);
-			return escape(byteArray.toString());
+			byteArray.position = 0;
+			byteArray.compress();
+			output = ByteArray2String(byteArray);
+			return output;
 		}
 
 		/**
@@ -211,40 +213,37 @@ package {
 		{
 			reset();
 			
-			var byteArray:ByteArray = new ByteArray();
-			byteArray.writeUTF(unescape(encodedFont));
+			var byteArray:ByteArray = String2ByteArray(encodedFont);
 			byteArray.position = 0;
-			var deserialized:String = byteArray.readUTF().toString();
+			byteArray.uncompress();
+			byteArray.position = 0;
 			
 			var letters:String = "";
 			var letterPos:int = 0;
-			var i:int = 2;	// skip first two bytes
 			
-			var n:int = deserialized.charCodeAt(i) - 32;	// number of glyphs
-			var w:int = deserialized.charCodeAt(++i) - 32;	// max width of single glyph
-			var h:int = deserialized.charCodeAt(++i) - 32;	// max height of single glyph
+			var n:int = byteArray.readShort();	// number of glyphs
+			var w:int = byteArray.readShort();	// max width of single glyph
+			var h:int = byteArray.readShort();	// max height of single glyph
 			
 			var size:int = int(Math.ceil(Math.sqrt(n * (w + 1) * (h + 1))) + Math.max(w, h));
 			var rows:int = int(size / (h + 1));
 			var cols:int = int(size / (w + 1));
 			var bd:BitmapData = new BitmapData(size, size, true, 0xFFFF0000);
-			var len:int = deserialized.length;
+			var len:int = byteArray.length;
 			
-			while (i < len)
+			while (byteArray.position < len)
 			{
-				letters += deserialized.charAt(++i);
+				letters += byteArray.readUTF();
 				
-				if (i >= len) break;
+				if (byteArray.position >= len) break;
 				
-				var gw:int = deserialized.charCodeAt(++i) - 32;
-				var gh:int = deserialized.charCodeAt(++i) - 32;
+				var gw:int = byteArray.readShort();
+				var gh:int = byteArray.readShort();
 				for (var py:int = 0; py < gh; py++) 
 				{
 					for (var px:int = 0; px < gw; px++) 
 					{
-						i++;
-						
-						var pixelOn:Boolean = deserialized.charAt(i) == "1"; 
+						var pixelOn:Boolean = byteArray.readBoolean();
 						bd.setPixel32(1 + (letterPos % cols) * (w + 1) + px, 1 + int(letterPos / cols) * (h + 1) + py, pixelOn ? 0xFFFFFFFF : 0x0);
 					}
 				}
@@ -259,6 +258,48 @@ package {
 			return font;
 		}
 		
+		/** 
+		 * Encodes a ByteArray into a String. 
+		 * 
+		 * @param byteArray		The ByteArray to be encoded.
+		 * @param mustEscape	Whether the returned string chars must be escaped.
+		 * @return The encoded string.
+		 */
+		public static function ByteArray2String(byteArray:ByteArray, mustEscape:Boolean = true):String {
+			var origPos:uint = byteArray.position;
+			var result:Array = new Array();
+			var output:String;
+
+			for (byteArray.position = 0; byteArray.position < byteArray.length - 1; )
+				result.push(byteArray.readShort());
+
+			if (byteArray.position != byteArray.length)
+				result.push(byteArray.readByte() << 8);
+
+			byteArray.position = origPos;
+			output = String.fromCharCode.apply(null, result);
+			return (mustEscape ? escape(output) : output);
+		}
+		
+		/** 
+		 * Decodes a ByteArray from a String. 
+		 * 
+		 * @param str			The string to be decoded.
+		 * @param mustUnescape	Whether the string chars must be unescaped.
+		 * @return The decoded ByteArray.
+		 */
+		public static function String2ByteArray(str:String, mustUnescape:Boolean = true):ByteArray {
+			var result:ByteArray = new ByteArray();
+			var encodedStr:String = (mustUnescape ? unescape(str) : str);
+			
+			for (var i:int = 0; i < encodedStr.length; ++i) {
+				result.writeShort(encodedStr.charCodeAt(i));
+			}
+			
+			result.position = 0;
+			return result;
+		}
+
 		/**
 		 * Internal function. Resets current font
 		 */
@@ -567,7 +608,7 @@ package {
 		}
 
 		/** Serialized default font data. (04B_03__.ttf @ 8px) */
-		public static const DEFAULT_FONT_DATA:String = "%0A%FF%7F%26%28%20%24%210000%21%22%26001010100010%22%24%240000101010100000%23%26%26000000010100111110010100111110010100%24%25%2700000001000111011000001101110000100%25%26%26000000100100000100001000010000010010%26%26%26000000011000100000011010100100011010%27%22%2400101000%28%23%26000010100100100010%29%23%26000100010010010100*%24%2500001010010010100000+%24%26000000000100111001000000%2C%23%27000000000000000010100-%24%2500000000000011100000.%22%26000000000010/%26%260000000000100001000010000100001000000%25%260000001100100101001010010011001%23%260001100100100100102%25%260000011100000100110010000111103%25%260000011100000100110000010111004%25%260000000100011001010011110001005%25%260000011110100001110000010111006%25%260000001100100001110010010011007%25%260000011110000100010001000010008%25%260000001100100100110010010011009%25%26000000110010010011100001001100%3A%22%26000010001000%3B%22%26000010001010%3C%24%26000000100100100001000010%3D%24%26000000001110000011100000%3E%24%26000010000100001001001000%3F%25%26000001110000010011000000001000@%26%26000000011100100010101110101010011100A%25%26000000110010010100101111010010B%25%26000001110010010111001001011100C%24%26000001101000100010000110D%25%26000001110010010100101001011100E%24%26000011101000111010001110F%24%26000011101000111010001000G%25%26000000111010000101101001001110H%25%26000001001010010111101001010010I%24%26000011100100010001001110J%25%26000000011000010000101001001100K%25%26000001001010100110001010010010L%24%26000010001000100010001110M%26%26000000100010110110101010100010100010N%25%26000001001011010101101001010010O%25%26000000110010010100101001001100P%25%26000001110010010100101110010000Q%25%2700000011001001010010100100110000010R%25%26000001110010010100101110010010S%25%26000000111010000011000001011100T%24%26000011100100010001000100U%25%26000001001010010100101001001100V%25%26000001001010010101001010001000W%26%26000000100010101010101010101010010100X%25%26000001001010010011001001010010Y%25%26000001001010010011100001001100Z%24%26000011100010010010001110%5B%23%26000110100100100110%5C%26%26000000100000010000001000000100000010%5D%23%26000110010010010110%5E%24%240000010010100000_%25%26000000000000000000000000011110%60%23%24000100010000a%25%26000000000001110100101001001110b%25%26000001000011100100101001011100c%24%26000000000110100010000110d%25%26000000001001110100101001001110e%25%26000000000001100101101100001100f%24%26000000100100111001000100g%25%280000000000011101001010010011100001001100h%25%26000001000011100100101001010010i%22%26001000101010j%23%28000010000010010010010100k%25%26000001000010010101001110010010l%22%26001010101010m%26%26000000000000111100101010101010101010n%25%26000000000011100100101001010010o%25%26000000000001100100101001001100p%25%280000000000111001001010010111001000010000q%25%280000000000011101001010010011100001000010r%24%26000000001010110010001000s%25%26000000000001110110000011011100t%24%26000001001110010001000010u%25%26000000000010010100101001001110v%25%26000000000010010100101010001000w%26%26000000000000101010101010010100010100x%24%26000000001010010001001010y%25%280000000000100101001010010011100001001100z%25%26000000000011110001000100011110%7B%24%26000001100100100001000110%7C%22%26001010101010%7D%24%26000011000100001001001100%7E%25%2400000010101010000000";
+		public static const DEFAULT_FONT_DATA:String = "%u78DA%u8D56%u8582%u1C21%u0CCD%u6BE7%uF6F6%u33EA%uEEEE%uEEAE%u57EF%uD5DD%uDDBF%uBD0C%u1003%u66EF%u6667%u5820%u21C9%u4B42%u8066%u6944%u63C2%u22EA%u08D4%u3F58%u4C0B%uC25C%u1821%uCE84%u0F4B%u02B5%u8B44%u99EE%u074B%u03DF%u88F2%u2032%uF64F%uA34F%u5846%u5334%u2DAC%u914A%uC80A%u1147%u4C58%uAE42%u416C%u936F%u3201%u2BAC%u7E08%u354A%uE4C5%u48BD%u9501%u54C7%uD610%u56D1%uC2B4%u92F9%u18E9%uEA4C%u806A%u49FD%u3561%uF994%u5FC1%uDAD6%u0612%u9B41%u19BA%uD842%u5817%u444E%u53F1%u64A9%uEB59%uAACC%u83A5%u6E48%u61B0%u6237%u1ABC%uB557%u8C7F%u089B%u82D8%u917A%u4682%uC2C6%u47ED%u9B19%u2C14%u6C7C%uB7C8%u6AB6%u07C2%u9522%u1BDA%uAD43%u4C09%u5E52%uB14D%uEDE0%u7068%u7AF0%uDC76%u2B09%uA2C4%u4BDA%u5121%u5247%u0BA2%u9D5E%u9206%uD2BA%u6857%uC337%u544A%uDADD%u6682%uC589%u3D1C%u23D5%uB0D7%u4FF5%uACFB%u343F%u34D9%uA4C1%u7E9B%u3E02%u5BF2%uE000%u93FD%u2AEE%u1E9C%u1005%uE13F%uE436%u0AD4%u3840%u7674%u76F3%uE1C1%uC4C9%uA1E9%uDF23%u5E29%u244C%u3001%u3B2A%uB880%u220C%u3DDB%uB196%u0CAB%uADA7%u1C17%uF02C%uC3FC%u134E%u0C92%uE3E4%u498B%u85F3%u8A14%u4694%u714A%uED68%u60CD%u9CA7%uAD22%u0B26%u8DCF%uD82C%uB771%uB219%u75B6%u5424%u14B3%uF3CE%uD968%uBB2F%u2A3A%uEF8A%u6306%u0353%u96B5%u665F%u28D4%u651E%u8FEB%uE27C%uCAC4%uA5C1%u4869%u9DC3%u652D%uF083%u9252%uEFCA%u5CE2%uFAF7%u6A23%u7455%u71B9%u3614%u95F4%u5D6F%u45B6%u0437%uD364%u82F1%u6468%u6E54%u6EAF%u7ECC%u7FB3%u21AF%uF008%uE156%u9BC9%u1797%uDB0E%u9D3D%uA7A2%uB83B%u5ABC%u7D11%uBBEB%u8D9D%uF087%u7B8D%u0320%uF6EF%uF381%uEF4F%uBA59%u93E7%uF593%uCF85%u0741%u6867%uB73B%uE161%uB1AE%uDC5E%u71DD%u23EB%u9476%u7210%u1EFB%uB316%u4551%u7962%u1561%u40D1%uD3CA%u1ADD%u4972%u9378%u5615%u6D97%u63CF%u838C%uF11C%u884C%u2C5F%u4CC6%u9606%u2FF9%uE2A5%u39F8%u2AF8%u725C%uDD7B%u24D9%u5E17%u62C9%u15F3%uFCBE%uB1F7%uB944%u7DEB%u2F12%u12BA%u4656%uBFF3%uCE6A%u5BFE%uBEE9%uD162%uA77D%uF02E%u1BAC%u2519%uEAC7%uF97A%u380D%u3FB9%u5394%uF358%u383E%uB732%uB0B8%u7FE2%u8B9E%u5845%uBCE3%uC4D7%uC215%u553D%uE99B%u6FC3%u4C2A%uEC7B%uE5FF%u4625%u49ED%u8F12%u975E%u4DFB%uE667%uE1D4%u964D%u2606%uBFAA%u6816%u674C%uCFF9%uDB1E%uDCEE%uBE12%uC77F%uEA7C%uFAAB%uA5AA%uB8A3%uC4F1%uBFA0%uB5F3%u40D3%uF31F%uA7D6%u2506";
 
 		
 		// BitmapFont information

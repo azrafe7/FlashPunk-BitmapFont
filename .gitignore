@@ -9,6 +9,8 @@ obj/
 *.ttf
 .settings/
 src/net/
+04b.png
+04b.fnt
 
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
