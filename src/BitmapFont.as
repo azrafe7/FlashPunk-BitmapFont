@@ -31,7 +31,7 @@ package {
 		 *     var font = new BitmapFont().fromSerialized(FONT_DATA);
 		 * 
 		 * @param	source		Font source image. A BitmapData object or embedded BitmapData class.
-		 * @param	XMLData		Font data. An XML object or embedded XML class.
+		 * @param	XMLData		Font data. An XML object or embedded XML class (in AngelCode's format).
 		 */
 		public function BitmapFont(source:* = null, XMLData:* = null) 
 		{
@@ -303,7 +303,7 @@ package {
 		/**
 		 * Internal function. Resets current font
 		 */
-		private function reset():void
+		protected function reset():void
 		{
 			dispose();
 			_maxWidth = 0;
@@ -320,7 +320,7 @@ package {
 		 * @param	glyphBGColor	An additional background color to remove (uint) - often 0xFF202020 is used for glyphs background.
 		 * @return The modified BitmapData.
 		 */
-		private function preparePixelizerBMD(bitmapData:BitmapData, rects:Vector.<Rectangle>, glyphBGColor:* = null):BitmapData
+		protected function preparePixelizerBMD(bitmapData:BitmapData, rects:Vector.<Rectangle>, glyphBGColor:* = null):BitmapData
 		{
 			var bgColor:int = bitmapData.getPixel(0, 0);	// general background color (sampled from the top-left pixel)
 			var cy:int = 0;
@@ -470,7 +470,7 @@ package {
 		/**
 		 * Sets the BitmapData for a specific glyph.
 		 */
-		private function setGlyph(charID:int, bitmapData:BitmapData):void 
+		protected function setGlyph(charID:int, bitmapData:BitmapData):void 
 		{
 			if (_glyphs[charID] != null) 
 			{
@@ -493,15 +493,16 @@ package {
 		 * Renders a string of text onto bitmap data using the font.
 		 * @param	bitmapData	Where to render the text.
 		 * @param	text		Test to render.
-		 * @param	color		Color of text to render.
+		 * @param	fontData	Array of glyphs' BitmapData.
 		 * @param	offsetX		X position of text output.
 		 * @param	offsetY		Y position of text output.
 		 */
-		public function render(bitmapData:BitmapData, fontData:Array, text:String, color:uint, offsetX:Number, offsetY:Number, letterSpacing:int):void 
+		public function render(bitmapData:BitmapData, text:String, fontData:Array = null, offsetX:Number = 0, offsetY:Number = 0, letterSpacing:int = 0):void 
 		{
 			FP.point.x = offsetX;
 			FP.point.y = offsetY;
 
+			if (fontData == null) fontData = _glyphs;
 			var glyph:BitmapData;
 			
 			for (var i:int = 0; i < text.length; i++) 
@@ -524,11 +525,9 @@ package {
 		 * @param	fontScale		"size" of the font.
 		 * @return	Width in pixels.
 		 */
-		public function getTextWidth(text:String, letterSpacing:* = null, fontScale:* = null):int 
+		public function getTextWidth(text:String, letterSpacing:int = 0, fontScale:Number = 1.0):int 
 		{
 			var w:int = 0;
-			letterSpacing = letterSpacing != null ? letterSpacing : 0;
-			fontScale = fontScale != null ? fontScale : 1.0;
 			
 			var textLength:int = text.length;
 			for (var i:int = 0; i < textLength; i++) 
@@ -567,6 +566,14 @@ package {
 			return _maxWidth;
 		}
 		
+		/**
+		 * Returns the array of glyphs' BitmapData (it's not a copy).
+		 */
+		public function get glyphs():Array
+		{
+			return _glyphs;
+		}
+		 
 		/**
 		 * Returns number of glyphs available in this font.
 		 * @return Number of glyphs available in this font.
