@@ -12,12 +12,14 @@ Supports various formats of BitmapFonts:
  - Serialized (a plain string defining the font data)
  
 `BitmapText` exposes various properties to change the visual style of the text (color, outline, multiline, fixedWidth, shadow, align, etc.).
-Just remember that some of them need to also enable the respective flag. Ex.:
+Ex.:
 
 ```as3
 	...
-    bitmapText.outlineColor = 0xFF0000;		// red outline
-	bitmapText.outline = true;				// <- enable the outline
+    bitmapText.outlineColor = 0xFF0000;			// red outline
+	bitmapText.outlineColor = null;				// <- disable the outline
+	bitmapText.setProperties({textColor: 0xFF0000, lineSpacing:5, shadowColor:0x0});	// set multiple properties at once
+	bitmapText.align = TextFormatAlign.RIGHT;	// change alignment
 	...
 ```
 
