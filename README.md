@@ -41,4 +41,4 @@ Some excellent and free tools you may find useful for exporting font data from t
 Check `TestWorld.as` to see how to use it.
 
 
-It needs more testing so if you find any bugs I'll be glad to here it from you.
+It needs more testing so if you find any bugs I'll be glad to hear it from you.
